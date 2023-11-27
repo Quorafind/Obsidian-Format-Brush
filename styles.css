@@ -1,8 +1,63 @@
-/*
+.brush-setting {
+    display: flex;
+    flex-direction: column;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.brush-setting .brush-setting-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 0.75em 0;
+    width: -webkit-fill-available;
+}
 
-If your plugin does not need CSS, delete this file.
+.brush-setting .brush-setting-header .brush-setting-name-component {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex: 1 1 auto;
+}
 
-*/
+.brush-setting .brush-setting-header .brush-setting-name-component .brush-setting-name {
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.brush-main-settings {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75em 0;
+    width: -webkit-fill-available;
+
+    border-top: 1px dashed var(--background-modifier-border);
+
+    gap: 0.5em;
+}
+
+.brush-setting .brush-main-settings-prefix, .brush-setting .brush-main-settings-suffix, .brush-setting .brush-main-settings-name {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+
+    width: -webkit-fill-available;
+
+    font-size: 1em;
+    font-weight: 600;
+}
+
+.status-bar-item.plugin-format-brush {
+    gap: var(--size-2-2);
+    font-size: 0.8rem;
+    align-items: center;
+}
+
+.status-bar-item.plugin-format-brush.format-brush-activated {
+    color: var(--text-accent);
+}
+
+.status-bar-item.plugin-format-brush .format-brush-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

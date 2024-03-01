@@ -8,6 +8,7 @@ interface Brush {
         prefix: string;
         suffix: string;
     };
+
 }
 
 export interface FormatBrushPluginSettings {
@@ -166,6 +167,8 @@ export class FormatBrushSettingTab extends PluginSettingTab {
                 settings.brushes[index] = {...brush, insert: {...brush.insert, suffix: target.value}};
                 this.applySettingsUpdate();
             });
+
+
         });
     }
 }

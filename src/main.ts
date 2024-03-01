@@ -1,11 +1,38 @@
-import { debounce, Editor, Menu, Notice, Platform, Plugin, setIcon, ToggleComponent } from 'obsidian';
-import { initializeDebounce, selectionField, selectionPlugin } from "./select";
+import { debounce, Editor, editorInfoField, Menu, Notice, Platform, Plugin, setIcon, ToggleComponent } from 'obsidian';
+import { initializeDebounce, selectionField, selectionPlugin, updateSelectionDebounce } from "./select";
 import { DEFAULT_SETTINGS, FormatBrushPluginSettings, FormatBrushSettingTab } from "./settings";
+import { EditorView, placeholder } from "@codemirror/view";
+
+function getTrimmedContent(selection: string): { trimContent: string, spaceBefore: string, spaceAfter: string } {
+    const trimContent = selection.trim();
+    const spaceBefore = selection.slice(0, selection.indexOf(trimContent));
+    const spaceAfter = selection.slice(selection.indexOf(trimContent) + trimContent.length);
+    return {trimContent, spaceBefore, spaceAfter};
+}
+
+function processSelection(trimContent: string, spaceBefore: string, spaceAfter: string, prefix: string, suffix: string): string {
+    if (trimContent.startsWith(prefix) && trimContent.endsWith(suffix)) {
+        return `${spaceBefore}${trimContent}${spaceAfter}`;
+    }
+    if (trimContent.startsWith(prefix)) {
+        return `${spaceBefore}${trimContent}${suffix}${spaceAfter}`;
+    }
+    if (trimContent.endsWith(suffix)) {
+        return `${spaceBefore}${prefix}${trimContent}${spaceAfter}`;
+    }
+    return `${spaceBefore}${prefix}${trimContent}${suffix}${spaceAfter}`;
+}
+
+function setCursorBeforeSuffix(editor: Editor, suffix: string): void {
+    editor.setCursor(editor.getCursor().line, editor.getCursor().ch - suffix.length);
+}
 
 export default class FormatBrushPlugin extends Plugin {
     isFormatBrushOn = false;
     settings: FormatBrushPluginSettings;
     statusBarEl: HTMLElement;
+
+    isMouseUp = true;
 
     cb: typeof debounce;
 
@@ -13,39 +40,29 @@ export default class FormatBrushPlugin extends Plugin {
         await this.registerSettings();
         this.registerEditorExtension([selectionField, selectionPlugin(this.select.bind(this))]);
 
-
         this.registerCommands();
         this.setupStatusBar();
+
+        this.registerEvents();
 
         this.app.workspace.onLayoutReady(() => initializeDebounce(this.app));
     }
 
     select(editor: Editor) {
+        if (!this.isMouseUp) return;
         const selection = editor.getSelection();
         if (selection.trim() && this.isFormatBrushOn) {
             const currentBrush = this.settings.lastBrush;
             const {prefix, suffix} = currentBrush.insert;
-            // get trim content and also the space before and after the trim content
-            const trimContent = selection.trim();
-            const spaceBefore = selection.slice(0, selection.indexOf(trimContent));
-            const spaceAfter = selection.slice(selection.indexOf(trimContent) + trimContent.length);
-            let newSelection = '';
-            // Check if the selection is already formatted
-            if (trimContent.startsWith(prefix) && trimContent.endsWith(suffix)) {
-                // Remove the prefix and suffix
-                newSelection = `${spaceBefore}${trimContent}${spaceAfter}`;
-            } else if (trimContent.startsWith(prefix) && !trimContent.endsWith(suffix)) {
-                // Remove the prefix
-                newSelection = `${spaceBefore}${trimContent}${suffix}${spaceAfter}`;
-            } else if (!trimContent.startsWith(prefix) && trimContent.endsWith(suffix)) {
-                // Remove the suffix
-                newSelection = `${spaceBefore}${prefix}${trimContent}${spaceAfter}`;
-            } else {
-                // Add prefix and suffix
-                newSelection = `${spaceBefore}${prefix}${trimContent}${suffix}${spaceAfter}`;
+
+            const {trimContent, spaceBefore, spaceAfter} = getTrimmedContent(selection);
+            let newSelection = processSelection(trimContent, spaceBefore, spaceAfter, prefix, suffix);
+
+            if (newSelection !== selection) {
+                editor.replaceSelection(newSelection);
             }
 
-            if (!(newSelection === selection)) editor.replaceSelection(newSelection);
+            setCursorBeforeSuffix(editor, suffix);
         }
     }
 
@@ -152,6 +169,23 @@ export default class FormatBrushPlugin extends Plugin {
             }
         });
 
+
+        this.addCommand({
+            id: 'remove-all-format',
+            name: 'Remove all format',
+            editorCallback: (editor, ctx) => {
+                const selection = editor.getSelection();
+                let newSelection = selection;
+                for (const brush of currentBrushes) {
+                    // Escape the special characters
+                    const prefixRegex = new RegExp(brush.insert.prefix.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'g');
+                    const suffixRegex = new RegExp(brush.insert.suffix.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'g');
+                    newSelection = selection.replace(prefixRegex, '').replace(suffixRegex, '');
+                }
+                if (!(newSelection === selection)) editor.replaceSelection(newSelection);
+            }
+        });
+
         for (const brush of currentBrushes) {
             this.addCommand({
                 id: `switch-format-brush-${brush.name}`,
@@ -182,6 +216,34 @@ export default class FormatBrushPlugin extends Plugin {
     async registerSettings() {
         await this.loadSettings();
         this.addSettingTab(new FormatBrushSettingTab(this.app, this));
+    }
+
+    registerEvents() {
+        this.registerEditorExtension(
+            EditorView.domEventHandlers({
+                mouseup: (e: MouseEvent, editorView: EditorView) => {
+                    this.isMouseUp = true;
+                    const editor = editorView.state.field(editorInfoField).editor;
+                    if (!editor) return;
+                    updateSelectionDebounce(editor, this.select.bind(this));
+                },
+                mousedown: () => {
+                    this.isMouseUp = false;
+                },
+                mouseleave: (e: MouseEvent, editorView: EditorView) => {
+                    this.isMouseUp = true;
+                    const editor = editorView.state.field(editorInfoField).editor;
+                    if (!editor) return;
+                    updateSelectionDebounce(editor, this.select.bind(this));
+                },
+                mousemove: (e: MouseEvent, editorView: EditorView) => {
+                    if (this.isMouseUp) return;
+                    const editor = editorView.state.field(editorInfoField).editor;
+                    if (!editor) return;
+                    updateSelectionDebounce(editor, this.select.bind(this));
+                },
+            })
+        );
     }
 
     onunload() {

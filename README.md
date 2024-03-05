@@ -2,6 +2,8 @@
 
 > This is a plugin built for @Yves03 , thanks for the idea and the support.
 
+![example](./media/example1.jpg)
+
 ## Features
 
 - You can set brush via plugins' settings.
